@@ -1,7 +1,7 @@
 - 👋 Hi, I’m @Anura794
 - 👀 I’m interested in data analytics
 - 🌱 I’m currently learning data-related courses
-- 📫 How to reach me https://www.linkedin.com/in/anupriya-raja
+- 📫 How to reach me 
 
 
 <!---
