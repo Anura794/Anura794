@@ -1,7 +1,7 @@
-- 👋 Hi, I’m @Anura794
-- 👀 I’m interested in data analytics
+- 👋 Hi, I’m Anupriya
+- 👀 I’m interested in data analytics, data science
 - 🌱 I’m currently learning data-related courses
-- 📫 How to reach me 
+- 📫 you can reach me @anuyaraja1994@gmail.com
 
 
 <!---
