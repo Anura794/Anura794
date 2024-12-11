@@ -1,0 +1,392 @@
+# %% [code]
+
+---
+title: 'BellaBeat case Study'
+author: 'Anupriya Raja'
+date: '`r Sys.Date()`'
+output:
+  html_document:
+    number_sections: true
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## About Bellabeat
+   Bellabeat is the Multinational high-tech company that focuses on health_related smart products to inspire the women wellness around the world.
+   
+   
+   Their products includes fitness app, watch,water bottle, leaf tracker which can be worn as a bracelet, necklece or clip. They also offers subscription-based membership program for users.
+   
+   
+   **Urška Sršen** and **Sando Mur** are the founders of the Bellabeat. As a stakeholder they want to know the usage of smart devices among women in order to gain insight about improving their product.
+ 
+# 1.ASK
+
+ 
+## Business Task
+
+ As a member of data analytics team in BellaBeat we are responsible for collecting the fitness data from trustable sources, analyzing it to get the idea about the trends and usage of smart devices among the customers, then reporting the suggestions and solutions regarding the improvization of smart devices.
+ 
+# 2.PREPARE
+
+
+## DataSource Description
+
+ + For this, I am using the dataset from **Kaggle** which is Fitbit Fitness Tracker Data by **Mobius**. This public dataset available on [link](https://www.kaggle.com/datasets/arashnic/fitbit).
+
+ + This dataset is survey conducted for 30 eligible Fitbit users via Amazon from the time between 03.12.2016-05.12.2016. 
+  
+ + This dataset includes the information about physical activity, heart rate, and sleep monitoring on the daily basis for 2 months’ time period.
+
+## Data Description
+
+
+### All about FitBit dataset
+In this Fitbit data there is Two directories for 2 months which contains 29 files and 311 columns. Everything in an Integer, Decimal, ID, and other data type format.  The data here is in the wide data format.
+
+### Data Credibility 
+  The data used here according to the ID of the customer there is no name and age group mentioned in the dataset. Also, there is no gender mentioned in the Fitbit dataset. Because of this we cannot say every age group participated in this survey.
+
+  I found this bias may affect the results of the analysis to improve the women’s smart devices usage. But its good to know the dataset updated annually which tells us this data is reliable.
+  
+# 3.PROCESS
+
+
+## Cleaning and preprocessing
+
+### Removing Duplicates
+
+  I used the dataset which contains the information on the daily basis. I use google spreadsheet to remove the duplicates from the dataset. 
+
+### Change Column names and Formatting
+ 
+ * Once I removed the duplicates, I checked the column names which is appropriate to the corresponding data.
+ 
+ * When I checked the datasets, some data are in Date and Time Format and another in Date format. So, for the data accuracy I changed all in date format in spreadsheet.
+
+### Data Integrity
+
+
+  Then I used pivot table in spreadsheet to find out how many days the survey has been taken according to each of the dataset. For this I use COUNTA(id) function which shows inconsistency in the days of each dataset.
+ 
+ 
+  After that, I upload the required datasets in SQL which I need for preprocessing and data cleaning. 
+ 
+ 
+
+### Setting up the Environment in R
+
+
+For further analysis I am setting the environment by loading the necessary packages in R
+
+```{r setting up environment in R}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(dbplyr)
+library(lubridate)
+```
+```{r}
+library(dplyr, warn.conflicts = FALSE)
+
+
+```
+
+
+### Importing the datasets
+ 
+ I need four datasets  daily_activity datasets to compare and findout the differences. Rename the datsets dailyActivity as DA and Organized_Fitbitdata as Organized_FB for using functions.
+ 
+ 
+```{r importing the datsets}
+ DA <- read_csv("/kaggle/input/bellabeat/dailyActivity_merged.csv")
+ sleep <- read_csv("/kaggle/input/bellabeat/sleepDay_merged.csv")
+ weight <- read_csv("/kaggle/input/bellabeat/weightLogInfo_merged.csv")
+ METs <- read_csv("/kaggle/input/bellabeat/minuteMETsNarrow_merged.csv")
+ 
+```
+### SQL Initialization
+
+
+```{r}
+con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+copy_to(con, DA)
+
+
+```
+ 
+ I need to check the dates if the data is accurate as per the description of the dataset. To find the accuracy of dataset I checked the dates of the data which mentioned as per dataset information By using SQL,
+
+```{sql connection= con}
+select 
+min(ActivityDate) as min_activeDay,
+max(ActivityDate) as max_activeDay
+from DA
+
+```
+This dataset contains information of one month but as per the table and this is not exactly the case. some days are missed from the record.
+
+To find out every person has been logged during those 31 days as per the daily activity dataset, i use SQL by,
+
+```{sql connection= con}
+select id, 
+count(id) as Totaluse
+From DA
+Group By id
+
+```
+
+After this query, i got to know some of the person from the survey not logged all the 31 days.  
+
+### Review the datasets
+
+
+Review these datasets to know get to know all datasets for more information.
+
+```{r view the datasets using head function}
+
+head(DA)
+head(sleep)
+head(weight)
+head(METs)
+
+```
+
+### Data consistency
+
+When reviewing every datasets i found some inconsistencies in the date format and the column names. 
+
+
+The DA has the Date format ActivityDate, Sleep and weight datset has date and time format and has different column names.
+
+### Changing the Date format and Rename
+
+So i am going to change the date format and rename the columns using R
+
+
+```{r Change the date format in sleep dataset}
+sleep <- sleep %>%
+  rename(date = SleepDay) %>%
+  mutate(date = as_date(date, format = "%m/%d/%Y %I:%M:%S %p", tz = Sys.timezone()))
+  
+```
+
+```{r Change the date format in weight dataset}
+ weight <- weight %>%
+  rename(date = Date) %>%
+  mutate(date = as_date(date, format = "%m/%d/%Y %I:%M:%S %p", tz = Sys.timezone()))
+
+```
+
+```{r Rename into date}
+DA <- DA %>%
+  rename(date = ActivityDate) %>%
+  mutate(date = as_date(date, format = "%m/%d/%Y"))
+```
+
+
+```{r review the datasets after date format change}
+head(sleep)
+head(weight)
+head(DA)
+```
+
+### Merging the datsets
+
+
+Then i need the dataset which contains all the information together further for my analysis. So i am merging activity(DA), sleep and weight datasets together.
+
+```{r merge the datasets together}
+AS_data <- merge(DA, sleep, by = c("Id", "date"))
+```
+```{r}
+ASW_data <- merge(AS_data, weight, by =c("Id", "date"))
+```
+
+Now i have two datsets to start the analysis.They are
+ * ASW_data (activity, sleep, weight)
+ * METs dataset
+
+# 4.ANALYZE
+
+
+### Analizing summary
+
+As i have the merged datasets iam going to compare the activities by,
+ * daily calories and daily steps
+ * daily sleep and daily calories
+ * weight and daily steps
+ * BMI and calories
+ * METs
+ 
+```{r to compare calories and steps per day}
+ggplot(data = ASW_data)+
+  geom_point(mapping = aes(x = TotalSteps, y = Calories,
+                           color= VeryActiveDistance, size = VeryActiveDistance ))+
+  labs(title = "Calories burned and Total steps", subtitle = "FitBit data from mobius")
+```
+ 
+By this graph i am learning the distance from 10000 steps from 15000 is the most active distance.As we can see this is the phase the high amount of calories has been burned. 
+
+
+So mostly the calories burned not only based on distance but intensity of the walking is very important to burn calories faster.
+
+### Ordering by Weekdays
+
+
+Now i am ordering the dates by weekdays. So that its easy to get to know about the activity per day.
+```{r change as weekdays}
+days_ASW <- ASW_data %>%
+mutate(days = weekdays(date)) %>%
+mutate(days = factor(days, levels = c('Monday','Tuesday','Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')))
+```
+`
+
+### Comparing Calories and Sleep
+
+Then i am going to compare sleep and calories to find about the connection between them.
+
+```{r finding connection between calories and sleep}
+
+ggplot(data = ASW_data)  +
+  geom_point (mapping =  aes(x = SedentaryMinutes, y = Calories,  color = TotalDistance)) +
+  geom_smooth( mapping = aes(x = SedentaryMinutes, y= Calories))+
+  labs( title = "Total Sleep and Calories burned", subtitle = "FitBit data from mobius")
+ 
+```
+
+I assumed the person who are more active during the day have good night sleep.But from this i find out the people who sleeps between 10 to 15 hours has been burned moderate amount of calories and has crossed moderate amount of distance. As of now, idon't see nany connection between the calories and sleep.
+
+###  Activity per day
+ 
+```{r active per day}
+ggplot(data = days_ASW) +
+  geom_col(mapping = aes(x = days, y = TotalDistance, fill = VeryActiveDistance)) +
+  theme(axis.text.x = element_text(angle = 45) )+
+  labs(title = "Total Distance per week", subtitle = "FitBit data from mobius")
+
+```
+ 
+As we can see, most active day is Sunday than other days. But Friday, they've completed less distance also they are not quite active. Atlast, Monday is the most active day in the week as per the record.
+ 
+ 
+### Sleep per day
+
+Now let's check out about the sleep per day
+
+```{r sleep during weekdays}
+ggplot(data = days_ASW) +
+  geom_col(mapping = aes(x = days, y = TotalMinutesAsleep), fill= "lightgreen" ) +
+  labs(title = "Sleep during  all Weekdays", subtitle = "FitBit data from mobius")
+  theme(axis.text.x = element_text(angle = 45)) 
+```
+ 
+As per these chart, i got to know the people only had long sleep during the midweek Wednesday. They had less sleep mostly on Friday and Saturday.
+
+### Calculating Body Mass index
+
+Now i am going to compare the weight and steps to analyse did they reach their target according to the weight. Before that, i need to order the data set according to BMI. 
+
+**Body mass index (BMI)** is a measure of body fat based on height and weight that applies to adult men and women.According to the BMI 
+
+ * < 18.5 = underweight
+ 
+ * 18.5 to 24.9 = healthy weight
+ 
+ * 25.0 to 29.9 = over weight
+ 
+ * < 30.0 = obese
+
+```{r}
+BMI_data <- ASW_data %>%
+  rowwise() %>%
+  mutate(BMI = case_when(
+    BMI <= 18 ~ "Underweight",
+    BMI >= 18.5 & BMI <=24.9 ~ "Healthy weight",
+    BMI >= 25 & BMI <=29.9 ~ "Over weight",
+    BMI < 30 ~ "Obese")) %>%
+    drop_na(BMI)
+
+  
+```
+
+```{r}
+head(BMI_data)
+```
+
+```{r Finding weight types}
+ggplot(BMI_data, aes(x="", y= WeightKg, fill= BMI)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0)
+  
+  
+```
+
+According to the data set the people who are using smart devices mostly maintaining healthy weight. Also i don't see anybody with underweight.
+
+Now lets explore more connection about BMI and Calories they have burned.
+
+```{r}
+ggplot(BMI_data)  +  
+ geom_boxplot(mapping = aes(x = BMI, y = Calories), fill = "purple")+
+  facet_wrap(~BMI)+
+  labs(title = "Calories vs Body Mass Index", subtitle = "FitBit data from mobius")+
+  theme(axis.text.x = element_text(angle = 45) )+
+  scale_y_continuous(sec.axis=sec_axis(~.*0.01,name="Percentage")) 
+```
+ 
+ As per this chart, i comes to know that the people who are overweight burned more calories than the people who have healthy weight.
+  
+
+### Metabolic Equivalents(METs)
+
+ * I found it quite interesting when I found about METs as another data. METs is a ratio of working metabolic rate relative to the resting metabolic rate. 
+ 
+ * Metabolic rate is the rate of energy expended per unit of time. It’s one way to describe the intensity of an exercise and activity. 
+ 
+ * An activity that has a value of 4 Mets means that is exerting four times the energy than sitting still. 
+ 
+ * Light < 3.0 METs	
+ 
+ * Moderate 3.0–6.0 METs
+ 
+ * Vigorous > 6.0 METs
+ 
+* The formula to use is: METs x 3.5 x (your body weight in kilograms) / 200 = calories burned per minute.
+
+* A MET is a way to measure  body’s expenditure of energy. The higher the MET value of a particular activity, the more energy the muscles will need to expend to do that activity.
+
+* Knowing the MET value of an activity can also be helpful in calculating how many calories has been burned during exercise. 
+
+
+
+```{r summary of METs}
+summary(METs)
+
+```
+
+As per this summary of the  METs data set, the average METs value of a person is 14.69 which is good METs when compared to vigorous METs is greater than 6.0.
+
+# 5.SHARE
+
+ * As per my analysis, I would suggest they should have some proper suggestions regarding their BMI so they could get the idea about how much activity they need during the day.
+ 
+* We can suggest some healthy meal plans according to their ethnicity so that they get to know about the healthy meals which can be prepared easily in home.
+
+* Like a game we can encourage them to finish the task for each day to open new features in smart devices.
+
+* By tracking their METs we can suggest some more activities according to their time. So they can easily utilize their free time according to their body requirement.
+
+* suggesting some sleeping techniques will be good for whoever struggling to sleep.
+
+* Aiming for at least 500 MET minutes a week is a good goal for optimal cardiovascular health.
+
+* **Bellabeat** is the women wellness-based company. So that we can suggest some tips and tricks during menstrual time wellness.
+
+*  They can perform moderate exercise, like brisk walking, over a longer period of time.
+
+
